@@ -9,28 +9,31 @@
 #import "FISTableViewController.h"
 #import "Message.h"
 
-@interface FISTableViewController ()
-
+@interface FISTableViewController ()<NSFetchedResultsControllerDelegate>
+@property (nonatomic, strong) NSFetchedResultsController *fetchController;
 @end
 
 @implementation FISTableViewController
 
-- (id)initWithStyle:(UITableViewStyle)style
-{
-    self = [super initWithStyle:style];
-    if (self) {
-        // Custom initialization
-    }
-    return self;
-}
-
-
-
 - (void)viewDidLoad
 {
     [super viewDidLoad];
+    self.tableView.accessibilityLabel = @"TableView";
+    self.tableView.accessibilityIdentifier = @"TableView";
     
     self.store = [FISDataStore sharedDataStore];
+    
+    NSFetchRequest *fetcher = [[NSFetchRequest alloc] initWithEntityName:@"Message"];
+    NSSortDescriptor *sorter = [NSSortDescriptor sortDescriptorWithKey:@"content" ascending:YES];
+    fetcher.sortDescriptors = @[sorter];
+    self.fetchController = [[NSFetchedResultsController alloc] initWithFetchRequest:fetcher managedObjectContext:self.store.managedObjectContext sectionNameKeyPath:nil cacheName:nil];
+    
+    self.fetchController.delegate = self;
+
+    
+    [self.fetchController performFetch:nil];
+    
+    
 }
 
 - (void)viewWillAppear:(BOOL)animated
@@ -49,32 +52,42 @@
 
 #pragma mark - Table view data source
 
-- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView
-{
-    // Return the number of sections.
-    return 1;
+- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
+    return [[self.fetchController sections] count];
 }
 
-- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
-{
-    // Return the number of rows in the section.
-    return [self.store.messages count];
+- (NSInteger)tableView:(UITableView *)table numberOfRowsInSection:(NSInteger)section {
+    if ([[self.fetchController sections] count] > 0) {
+        id <NSFetchedResultsSectionInfo> sectionInfo = [[self.fetchController sections] objectAtIndex:section];
+        return [sectionInfo numberOfObjects];
+    }
+        return 0;
 }
 
-
-- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
-{
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"basiccell" forIndexPath:indexPath];
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     
-    Message *eachMessage = self.store.messages[indexPath.row];
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"celIID" forIndexPath:indexPath];
+    Message *message = [self.fetchController objectAtIndexPath:indexPath];
     
-    cell.textLabel.text = eachMessage.content;
+    cell.textLabel.text = message.content;
     
-    // Configure the cell...
+    // Configure the cell with data from the managed object.
+    
     
     return cell;
 }
 
+
+- (IBAction)addButtonTapped:(id)sender {
+    
+    Message *message = [NSEntityDescription insertNewObjectForEntityForName:@"Message"
+                                                     inManagedObjectContext:self.store.managedObjectContext];
+    
+    message.content = [[NSDate alloc]init].description;
+    
+    NSLog(@"%@", message.content);
+    
+}
 #pragma mark - NSFetchedResultsControllerDelegate methods
 
 - (void)controllerWillChangeContent:(NSFetchedResultsController *)controller {
@@ -101,10 +114,10 @@
                              withRowAnimation:UITableViewRowAnimationFade];
             break;
 
-        case NSFetchedResultsChangeUpdate:
-            [tableView reloadRowsAtIndexPaths:@[indexPath]
-                             withRowAnimation:UITableViewRowAnimationAutomatic];
-            break;
+//        case NSFetchedResultsChangeUpdate:
+//            [tableView reloadRowsAtIndexPaths:@[indexPath]
+//                             withRowAnimation:UITableViewRowAnimationAutomatic];
+//            break;
         case NSFetchedResultsChangeMove:
             [tableView deleteRowsAtIndexPaths:[NSArray
                                                arrayWithObject:indexPath]
@@ -131,6 +144,9 @@
         case NSFetchedResultsChangeDelete:
             [self.tableView deleteSections:[NSIndexSet indexSetWithIndex:sectionIndex]
                           withRowAnimation:UITableViewRowAnimationFade];
+            break;
+            
+        default:
             break;
     }
 }
